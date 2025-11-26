@@ -1,0 +1,459 @@
+<html>
+<head>
+<script src="https://unpkg.com/obniz@3.30.0/obniz.js"></script>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+  .magic-container { background: white; padding: 20px; border-radius: 15px; margin: 10px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+  .magic-title { background: linear-gradient(45deg, #ff6b6b, #4ecdc4); color: white; padding: 20px; border-radius: 15px; text-align: center; }
+  .navigation-active { background: linear-gradient(45deg, #4CAF50, #45a049); color: white; }
+  button { margin: 5px; padding: 12px 20px; font-size: 14px; border: none; border-radius: 8px; cursor: pointer; }
+  .btn-magic { background: linear-gradient(45deg, #ff6b6b, #4ecdc4); color: white; font-weight: bold; }
+  input { padding: 10px; font-size: 16px; border: 2px solid #ddd; border-radius: 8px; width: 300px; }
+</style>
+</head>
+<body>
+
+<div class="magic-title">
+  <h1>🪄 完全版魔法の指輪ナビ</h1>
+  <p>リアルタイム道案内システム</p>
+</div>
+
+<div class="magic-container" id="nav-container">
+  <h3>🎯 魔法のナビゲーション</h3>
+  <input type="text" id="destination" placeholder="目的地を入力（例：熊谷駅、東京駅）" value="">
+  <button class="btn-magic" onclick="startWalkingNavigation()">🚶‍♂️ 歩行ナビ開始</button>
+  <button onclick="stopNavigation()" style="background: #f44336; color: white;">⏹️ ナビ停止</button>
+</div>
+
+<div class="magic-container">
+  <h4>📍 現在の状況</h4>
+  <div id="location-display" style="background: #f0f8ff; padding: 15px; border-radius: 8px;">GPS取得中...</div>
+  <div id="navigation-progress" style="margin-top: 10px; font-weight: bold;"></div>
+</div>
+
+<div class="magic-container">
+  <h4>🪄 魔法の指輪指示</h4>
+  <div id="ring-status" style="font-size: 20px; font-weight: bold; color: #4CAF50; text-align: center; padding: 15px; background: #f0f8ff; border-radius: 10px;">✨ 魔法待機中</div>
+  <div id="current-instruction" style="font-size: 18px; margin: 15px 0; padding: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; text-align: center;">🔮 指示待機中</div>
+  <div id="distance-info" style="text-align: center; color: #666; font-size: 16px;">距離情報取得中...</div>
+</div>
+
+<div id="map" style="height: 400px; width: 100%; border-radius: 10px; margin: 20px 0; border: 3px solid #4CAF50;"></div>
+
+<div class="magic-container">
+  <h4>📊 ナビログ</h4>
+  <div id="magic-log" style="background: #f8f9fa; padding: 15px; font-family: monospace; height: 200px; overflow-y: scroll; border: 1px solid #ddd; border-radius: 8px;">
+魔法の指輪システム起動中...<br>
+  </div>
+</div>
+
+<script>
+var obniz = new Obniz("1481-6445");
+var magicRing;
+var map, directionsService, directionsRenderer, userMarker;
+var currentPosition = null;
+var route = null;
+var currentStepIndex = 0;
+var isNavigating = false;
+var locationWatcher = null;
+
+// 魔法の色（完成版）
+const MAGIC_COLORS = {
+  RIGHT: [0, 255, 100],      // 右折：エメラルド
+  LEFT: [30, 144, 255],      // 左折：サファイア
+  STRAIGHT: [255, 215, 0],   // 直進：ゴールド
+  CALCULATING: [148, 0, 211], // 計算中：神秘紫
+  SUCCESS: [50, 205, 50],    // 成功：緑
+  ARRIVED: [255, 105, 180],  // 到着：祝福ピンク
+  WARNING: [255, 140, 0],    // 警告：オレンジ
+  OFF: [0, 0, 0]
+};
+
+function log(message) {
+  const now = new Date();
+  const time = now.getHours() + ':' + 
+               String(now.getMinutes()).padStart(2, '0') + ':' + 
+               String(now.getSeconds()).padStart(2, '0');
+  const logDiv = document.getElementById("magic-log");
+  logDiv.innerHTML += '[' + time + '] ' + message + '<br>';
+  logDiv.scrollTop = logDiv.scrollHeight;
+}
+
+obniz.onconnect = function() {
+  log("✅ obniz接続成功");
+  log("🪄 最終版魔法の指輪を初期化中...");
+  
+  // 完成した魔法の指輪
+  magicRing = obniz.wired('WS2811', {
+    gnd: 0,
+    vcc: 1,
+    din: 2
+  });
+  
+  log("✨ 魔法の指輪最終版が起動！");
+  
+  // 初期化演出
+  initializationCelebration();
+  
+  obniz.display.clear();
+  obniz.display.print('Final Magic!');
+  
+  // Google Maps初期化
+  initializeGoogleMaps();
+  
+  // GPS取得
+  setTimeout(function() {
+    getCurrentLocation();
+  }, 2000);
+};
+
+async function initializationCelebration() {
+  log("🎊 最終版起動記念演出");
+  
+  const finalColors = [
+    [255, 0, 0], [255, 127, 0], [255, 255, 0], [0, 255, 0],
+    [0, 255, 255], [0, 0, 255], [148, 0, 211], [255, 20, 147]
+  ];
+  
+  for (let i = 0; i < 2; i++) {
+    for (let color of finalColors) {
+      magicRing.rgb(color[0], color[1], color[2]);
+      await obniz.wait(150);
+    }
+  }
+  
+  magicRing.rgb(MAGIC_COLORS.SUCCESS[0], MAGIC_COLORS.SUCCESS[1], MAGIC_COLORS.SUCCESS[2]);
+  await obniz.wait(2000);
+  magicRing.rgb(0, 0, 0);
+  
+  log("✨ 起動演出完了");
+}
+
+function initializeGoogleMaps() {
+  log("🗺️ Google Maps最終版初期化");
+  
+  var center = { lat: 36.1402, lng: 139.4111 }; // 熊谷周辺
+  
+  map = new google.maps.Map(document.getElementById("map"), {
+    zoom: 17,
+    center: center,
+    mapTypeId: google.maps.MapTypeId.ROADMAP
+  });
+  
+  directionsService = new google.maps.DirectionsService();
+  directionsRenderer = new google.maps.DirectionsRenderer({
+    suppressMarkers: false,
+    polylineOptions: {
+      strokeColor: "#FF6B6B",
+      strokeWeight: 8
+    }
+  });
+  directionsRenderer.setMap(map);
+  
+  log("✅ Google Maps最終版初期化完了");
+}
+
+function getCurrentLocation() {
+  log("📍 現在地取得開始");
+  document.getElementById("location-display").innerHTML = "🔮 GPS魔法で現在地取得中...";
+  
+  if (magicRing) {
+    magicRing.rgb(MAGIC_COLORS.CALCULATING[0], MAGIC_COLORS.CALCULATING[1], MAGIC_COLORS.CALCULATING[2]);
+  }
+  
+  navigator.geolocation.getCurrentPosition(
+    function(position) {
+      currentPosition = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        accuracy: position.coords.accuracy
+      };
+      
+      var locationText = "📍 現在地取得成功！<br>";
+      locationText += "緯度: " + currentPosition.lat.toFixed(6) + "<br>";
+      locationText += "経度: " + currentPosition.lng.toFixed(6) + "<br>";
+      locationText += "GPS精度: " + Math.round(currentPosition.accuracy) + "m";
+      
+      document.getElementById("location-display").innerHTML = locationText;
+      
+      log("✅ GPS取得成功: 精度" + Math.round(currentPosition.accuracy) + "m");
+      
+      // 地図更新
+      if (map) {
+        map.setCenter(currentPosition);
+        updateUserMarker();
+      }
+      
+      // 成功の魔法
+      if (magicRing) {
+        magicRing.rgb(MAGIC_COLORS.SUCCESS[0], MAGIC_COLORS.SUCCESS[1], MAGIC_COLORS.SUCCESS[2]);
+        setTimeout(function() {
+          magicRing.rgb(0, 0, 0);
+        }, 2000);
+      }
+      
+    },
+    function(error) {
+      log("❌ GPS取得エラー: " + error.message);
+      document.getElementById("location-display").innerHTML = "❌ GPS取得失敗: " + error.message;
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+}
+
+function updateUserMarker() {
+  if (!map || !currentPosition) return;
+  
+  if (userMarker) {
+    userMarker.setPosition(currentPosition);
+  } else {
+    userMarker = new google.maps.Marker({
+      position: currentPosition,
+      map: map,
+      title: "現在地",
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        fillColor: 'blue',
+        fillOpacity: 1,
+        strokeColor: 'white',
+        strokeWeight: 3,
+        scale: 10
+      }
+    });
+  }
+}
+
+async function startWalkingNavigation() {
+  var destination = document.getElementById("destination").value.trim();
+  
+  if (!destination) {
+    alert("目的地を入力してください");
+    return;
+  }
+  
+  if (!currentPosition) {
+    alert("現在地を取得してください");
+    getCurrentLocation();
+    return;
+  }
+  
+  log("🚶‍♂️ " + destination + "への歩行ナビ開始");
+  document.getElementById("nav-container").className = "magic-container navigation-active";
+  
+  // 計算中の魔法
+  magicRing.rgb(MAGIC_COLORS.CALCULATING[0], MAGIC_COLORS.CALCULATING[1], MAGIC_COLORS.CALCULATING[2]);
+  document.getElementById("ring-status").innerHTML = "🔮 ルート魔法計算中...";
+  
+  var request = {
+    origin: new google.maps.LatLng(currentPosition.lat, currentPosition.lng),
+    destination: destination,
+    travelMode: google.maps.TravelMode.WALKING,
+    unitSystem: google.maps.UnitSystem.METRIC,
+    language: 'ja'
+  };
+  
+  directionsService.route(request, function(result, status) {
+    if (status === google.maps.DirectionsStatus.OK) {
+      directionsRenderer.setDirections(result);
+      route = result.routes[0];
+      currentStepIndex = 0;
+      isNavigating = true;
+      
+      log("✅ ルート計算完了: " + route.legs[0].distance.text + ", " + route.legs[0].duration.text);
+      
+      // 最初のステップを表示
+      processCurrentStep();
+      
+      // リアルタイム位置追跡開始
+      startLocationTracking();
+      
+      log("🔄 リアルタイム歩行追跡開始");
+      
+    } else {
+      log("❌ ルート計算失敗: " + status);
+      alert("ルート計算に失敗しました: " + status);
+    }
+  });
+}
+
+function processCurrentStep() {
+  if (!route || !isNavigating) return;
+  
+  var steps = route.legs[0].steps;
+  
+  if (currentStepIndex >= steps.length) {
+    arrivalCelebration();
+    return;
+  }
+  
+  var step = steps[currentStepIndex];
+  var instruction = step.instructions.replace(/<[^>]*>/g, '');
+  var maneuver = step.maneuver || 'straight';
+  
+  document.getElementById("current-instruction").innerHTML = 
+    "🚶 Step " + (currentStepIndex + 1) + "/" + steps.length + "<br>" +
+    "📍 " + instruction + "<br>" +
+    "📏 " + step.distance.text;
+  
+  document.getElementById("navigation-progress").innerHTML = 
+    "進捗: " + (currentStepIndex + 1) + "/" + steps.length + " ステップ";
+  
+  log("📍 Step " + (currentStepIndex + 1) + ": " + instruction);
+  
+  showMagicDirection(maneuver, instruction);
+}
+
+function showMagicDirection(maneuver, instruction) {
+  var color, statusText, displayText;
+  
+  if (maneuver.includes('right') || instruction.includes('右')) {
+    color = MAGIC_COLORS.RIGHT;
+    statusText = "➡️ 右折の魔法発動";
+    displayText = "Turn Right";
+  } else if (maneuver.includes('left') || instruction.includes('左')) {
+    color = MAGIC_COLORS.LEFT;
+    statusText = "⬅️ 左折の魔法発動";
+    displayText = "Turn Left";
+  } else {
+    color = MAGIC_COLORS.STRAIGHT;
+    statusText = "⬆️ 直進の魔法発動";
+    displayText = "Go Straight";
+  }
+  
+  document.getElementById("ring-status").innerHTML = statusText;
+  magicRing.rgb(color[0], color[1], color[2]);
+  
+  obniz.display.clear();
+  obniz.display.print(displayText);
+  
+  log("🪄 " + statusText);
+}
+
+function startLocationTracking() {
+  log("📡 リアルタイム位置追跡システム開始");
+  
+  if (locationWatcher) {
+    navigator.geolocation.clearWatch(locationWatcher);
+  }
+  
+  locationWatcher = navigator.geolocation.watchPosition(
+    function(position) {
+      currentPosition = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        accuracy: position.coords.accuracy
+      };
+      
+      // マーカー更新
+      if (userMarker) {
+        userMarker.setPosition(currentPosition);
+      }
+      
+      // 地図中心更新
+      if (isNavigating) {
+        map.panTo(currentPosition);
+      }
+      
+      // 進行状況チェック
+      if (isNavigating) {
+        checkNavigationProgress();
+      }
+    },
+    function(error) {
+      log("⚠️ 位置追跡エラー: " + error.message);
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 5000
+    }
+  );
+}
+
+function checkNavigationProgress() {
+  if (!route || currentStepIndex >= route.legs[0].steps.length) return;
+  
+  var currentStep = route.legs[0].steps[currentStepIndex];
+  var stepEndLocation = currentStep.end_location;
+  
+  var distance = calculateDistance(
+    currentPosition.lat, currentPosition.lng,
+    stepEndLocation.lat(), stepEndLocation.lng()
+  );
+  
+  var distanceM = distance * 1000;
+  
+  document.getElementById("distance-info").innerHTML = 
+    "🎯 次のポイントまで: " + Math.round(distanceM) + "m";
+  
+  // 25m以内で次のステップへ
+  if (distanceM < 25) {
+    log("✅ Step " + (currentStepIndex + 1) + "完了 (残り" + Math.round(distanceM) + "m)");
+    currentStepIndex++;
+    processCurrentStep();
+  }
+}
+
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  var R = 6371;
+  var dLat = (lat2 - lat1) * Math.PI / 180;
+  var dLon = (lon2 - lon1) * Math.PI / 180;
+  var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.bit / 180) *
+          Math.sin(dLon/2) * Math.sin(dLon/2);
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+async function arrivalCelebration() {
+  isNavigating = false;
+  if (locationWatcher) {
+    navigator.geolocation.clearWatch(locationWatcher);
+  }
+  
+  log("🎉 目的地到着！最終祝福魔法発動！");
+  document.getElementById("ring-status").innerHTML = "🎊 到着！祝福魔法発動中";
+  document.getElementById("current-instruction").innerHTML = "🎉 目的地に到着しました！<br>✨ 魔法のナビゲーション完了";
+  document.getElementById("nav-container").className = "magic-container";
+  
+  // 最終祝福の虹色魔法
+  var celebrationColors = [
+    [255, 0, 0], [255, 127, 0], [255, 255, 0], [0, 255, 0],
+    [0, 255, 255], [0, 0, 255], [148, 0, 211], [255, 20, 147]
+  ];
+  
+  for (var cycle = 0; cycle < 10; cycle++) {
+    for (var color of celebrationColors) {
+      magicRing.rgb(color[0], color[1], color[2]);
+      await obniz.wait(120);
+    }
+  }
+  
+  magicRing.rgb(MAGIC_COLORS.ARRIVED[0], MAGIC_COLORS.ARRIVED[1], MAGIC_COLORS.ARRIVED[2]);
+  
+  obniz.display.clear();
+  obniz.display.print('ARRIVED!!');
+  
+  log("🪄✨ 魔法の指輪ナビゲーション完全完了！ ✨🪄");
+}
+
+function stopNavigation() {
+  isNavigating = false;
+  if (locationWatcher) {
+    navigator.geolocation.clearWatch(locationWatcher);
+  }
+  
+  magicRing.rgb(0, 0, 0);
+  document.getElementById("ring-status").innerHTML = "⏹️ ナビ停止";
+  document.getElementById("current-instruction").innerHTML = "🔮 指示待機中";
+  document.getElementById("nav-container").className = "magic-container";
+  log("⏹️ 魔法ナビ停止");
+}
+</script>
+
+<!-- Google Maps API -->
+<script async defer 
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBGwQk-t30NN7TZ1J1tkRlLO2wamO4_7mk&callback=initializeGoogleMaps&language=ja">
+</script>
+</body>
+</html>

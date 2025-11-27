@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>マジカルナビリング</title>
+
+  <!-- obniz -->
+  <script src="https://unpkg.com/obniz@3.30.0/obniz.js"></script>
+
+  <!-- フォント -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&display=swap" rel="stylesheet" />
+
+  <!-- 外部CSS -->
+  <link rel="stylesheet" href="https://github.com/magicalteam6/Magic/edit/main/magical/magical-theme.css" />
+</head>
+<body>
+
+  <!-- 魔法の星の装飾 -->
+  <div class="magic-decorations">
+    <div class="magic-item" style="top:10%; left:15%;">✨</div>
+    <div class="magic-item" style="top:30%; left:70%;">🌟</div>
+    <div class="magic-item" style="top:60%; left:40%;">💫</div>
+    <div class="magic-item" style="top:80%; left:80%;">⭐</div>
+  </div>
+
+  <!-- 魔法のキラキラエフェクト -->
+  <div class="magic-sparkles" id="sparkles"></div>
+
+  <!-- タイトル -->
+  <div class="magic-title">
+    <h1>🪄 マジカルナビリング 💍</h1>
+    <p>✨ 道案内はファッションになった ✨</p>
+    <div style="margin-top: 15px; font-size: 1.1em;">
+      <span class="gem-accent">💎</span>
+      <span class="gem-accent">🌟</span>
+      <span class="gem-accent">✨</span>
+      <span class="gem-accent">💖</span>
+      <span class="gem-accent">🌈</span>
+    </div>
+  </div>
+
+<div class="magic-container">
+  <div class="section-title">
+    <span class="gem-accent">🎯</span>
+    魔法のナビゲーション設定
+    <span class="gem-accent">🎯</span>
+  </div>
+  
+  <div style="text-align: center; margin: 20px 0;">
+    <input type="text" id="destination" 
+           placeholder="✨ 目的地を入力（例：新宿駅、東京駅）💫" 
+           value="">
+  </div>
+  
+  <div class="button-container">
+    <button class="btn-magic btn-voice" onclick="startVoiceInput()">
+      🎙️ 音声で目的地入力
+    </button>
+    <button class="btn-magic btn-test" onclick="testColorDistinction()">
+      🔍 色区別テスト
+    </button>
+    <button class="btn-magic" onclick="startWalkingNavigation()">
+      🚶‍♀️ 歩行ナビ開始
+    </button>
+    <button class="btn-stop" onclick="stopNavigation()">
+      ⏹️ ナビ停止
+    </button>
+  </div>
+</div>
+
+<div class="magic-container">
+  <div class="section-title">
+    <span class="gem-accent">📍</span>
+    現在の状況
+    <span class="gem-accent">📍</span>
+  </div>
+  <div id="location-display" class="status-display">
+    🔮 GPS魔法で現在地取得中...
+  </div>
+  <div id="navigation-progress" class="status-display" 
+       style="margin-top: 10px; font-weight: bold; text-align: center;">
+  </div>
+</div>
+
+```html
+<div class="magic-container ring-status-container">
+  <div class="section-title">
+    <span class="gem-accent">💍</span>
+    マジカルリング指示
+    <span class="gem-accent">💍</span>
+  </div>
+  <div id="ring-status" style="font-size: 24px; font-weight: bold; color: #c44569; text-align: center; padding: 20px;">
+    ✨ 魔法待機中 ✨
+  </div>
+  <div id="current-instruction" class="instruction-display">
+    🔮 指示待機中 🔮
+  </div>
+  <div id="distance-info" style="text-align: center; color: #c44569; font-size: 18px; font-weight: bold;">
+    距離情報取得中...
+  </div>
+</div>
+
+<div id="map"></div>
+
+<div class="magic-container">
+  <div class="section-title">
+    <span class="gem-accent">📊</span>
+    マジカルログ
+    <span class="gem-accent">📊</span>
+  </div>
+  <div id="magic-log" class="magic-log">
+    ✨ 魔法の指輪システム起動中... ✨<br>
+  </div>
+</div>
+
+<script>
+var obniz = new Obniz("1481-6445");
+var magicRing;
+var map, directionsService, directionsRenderer, userMarker;
+var currentPosition = null;
+var route = null;
+var currentStepIndex = 0;
+var isNavigating = false;
+var locationWatcher = null;
+
+// 魔法の色（最終版）
+const MAGIC_COLORS = {
+  RIGHT: [255, 215, 0],      // 右折：シャイニングゴールド
+  LEFT: [148, 0, 211],       // 左折：マジカルパープル
+  STRAIGHT: [0, 255, 100],   // 直進：ミラクルエメラルド
+  CALCULATING: [30, 144, 255], // 計算中：マジカルサファイア
+  SUCCESS: [50, 205, 50],    // 成功：緑
+  ARRIVED: [255, 105, 180],  // 到着：プリンセスピンク
+  WARNING: [255, 0, 0],      // 警告：レッド
+  OFF: [0, 0, 0]
+};
+
+// キラキラエフェクト生成
+function createSparkles() {
+  const sparklesContainer = document.getElementById('sparkles');
+  
+  setInterval(() => {
+    const sparkle = document.createElement('div');
+    sparkle.className = 'sparkle';
+    sparkle.style.left = Math.random() * 100 + '%';
+    sparkle.style.animationDuration = (Math.random() * 3 + 2) + 's';
+    sparkle.style.animationDelay = Math.random() * 2 + 's';
+    
+    sparklesContainer.appendChild(sparkle);
+    
+    setTimeout(() => {
+      if (sparkle.parentNode) {
+        sparkle.parentNode.removeChild(sparkle);
+      }
+    }, 5000);
+  }, 500);
+}
+
+function log(message) {
+  const now = new Date();
+  const time = now.getHours() + ':' + 
+               String(now.getMinutes()).padStart(2, '0') + ':' + 
+               String(now.getSeconds()).padStart(2, '0');
+  const logDiv = document.getElementById("magic-log");
+  logDiv.innerHTML += '[' + time + '] ' + message + '<br>';
+  logDiv.scrollTop = logDiv.scrollHeight;
+}
+
+obniz.onconnect = function() {
+  log("✅ obniz接続成功");
+  log("🪄 マジカルリングを初期化中...");
+  
+  // マジカルリング初期化
+  magicRing = obniz.wired('WS2811', {
+    gnd: 0,
+    vcc: 1,
+    din: 2
+  });
+  
+  log("✨ マジカルリングが起動！");
+  
+  // 初期化演出
+  initializationCelebration();
+  
+  obniz.display.clear();
+  obniz.display.print('Magical!');
+  
+  // Google Maps初期化
+  initializeGoogleMaps();
+  
+  // キラキラエフェクト開始
+  createSparkles();
+  
+  // GPS取得
+  setTimeout(function() {
+    getCurrentLocation();
+  }, 2000);
+};
+
+async function initializationCelebration() {
+  log("🎊 マジカル起動演出");
+  
+  const magicalColors = [
+    MAGIC_COLORS.RIGHT,      // シャイニングゴールド
+    MAGIC_COLORS.LEFT,       // マジカルパープル
+    MAGIC_COLORS.STRAIGHT,   // ミラクルエメラルド
+    MAGIC_COLORS.CALCULATING,// マジカルサファイア
+    MAGIC_COLORS.ARRIVED     // プリンセスピンク
+  ];
+  
+  for (let i = 0; i < 3; i++) {
+    for (let color of magicalColors) {
+      magicRing.rgb(color[0], color[1], color[2]);
+      await obniz.wait(200);
+    }
+  }
+  
+  magicRing.rgb(MAGIC_COLORS.SUCCESS[0], MAGIC_COLORS.SUCCESS[1], MAGIC_COLORS.SUCCESS[2]);
+  await obniz.wait(2000);
+  magicRing.rgb(0, 0, 0);
+  
+  log("✨ マジカル演出完了");
+}
+
+function initializeGoogleMaps() {
+  log("🗺️ Google Maps初期化");
+  
+  var center = { lat: 35.6813, lng: 139.7660 };
+  
+  map = new google.maps.Map(document.getElementById("map"), {
+    zoom: 17,
+    center: center,
+    mapTypeId: google.maps.MapTypeId.ROADMAP,
+    styles: [
+      {
+        "featureType": "all",
+        "elementType": "geometry",
+        "stylers": [{"saturation": 30}, {"lightness": 30}]
+      }
+    ]
+  });
+  
+  directionsService = new google.maps.DirectionsService();
+  directionsRenderer = new google.maps.DirectionsRenderer({
+    suppressMarkers: false,
+    polylineOptions: {
+      strokeColor: "#ff6b9d",
+      strokeWeight: 6,
+      strokeOpacity: 0.8
+    }
+  });
+  directionsRenderer.setMap(map);
+  
+  log("✅ Google Maps初期化完了");
+}
+
+function getCurrentLocation() {
+  log("📍 現在地取得開始");
+  document.getElementById("location-display").innerHTML = "🔮 GPS魔法で現在地取得中...";
+  
+  if (magicRing) {
+    magicRing.rgb(MAGIC_COLORS.CALCULATING[0], MAGIC_COLORS.CALCULATING[1], MAGIC_COLORS.CALCULATING[2]);
+  }
+  
+  navigator.geolocation.getCurrentPosition(
+    function(position) {
+      currentPosition = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        accuracy: position.coords.accuracy
+      };
+      
+      var locationText = "📍 現在地取得成功！ ✨<br>";
+      locationText += "緯度: " + currentPosition.lat.toFixed(6) + "<br>";
+      locationText += "経度: " + currentPosition.lng.toFixed(6) + "<br>";
+      locationText += "GPS精度: " + Math.round(currentPosition.accuracy) + "m 💎";
+      
+      document.getElementById("location-display").innerHTML = locationText;
+      
+      log("✅ GPS取得成功: 精度" + Math.round(currentPosition.accuracy) + "m");
+      
+      // 地図更新
+      if (map) {
+        map.setCenter(currentPosition);
+        updateUserMarker();
+      }
+      
+      // 成功の魔法
+      if (magicRing) {
+        magicRing.rgb(MAGIC_COLORS.SUCCESS[0], MAGIC_COLORS.SUCCESS[1], MAGIC_COLORS.SUCCESS[2]);
+        setTimeout(function() {
+          magicRing.rgb(0, 0, 0);
+        }, 2000);
+      }
+      
+    },
+    function(error) {
+      log("❌ GPS取得エラー: " + error.message);
+      document.getElementById("location-display").innerHTML = "❌ GPS取得失敗: " + error.message;
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+}
+
+function updateUserMarker() {
+  if (!map || !currentPosition) return;
+  
+  if (userMarker) {
+    userMarker.setPosition(currentPosition);
+  } else {
+    userMarker = new google.maps.Marker({
+      position: currentPosition,
+      map: map,
+      title: "現在地",
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        fillColor: '#ff6b9d',
+        fillOpacity: 1,
+        strokeColor: 'white',
+        strokeWeight: 3,
+        scale: 12
+      }
+    });
+  }
+}
+
+async function startWalkingNavigation() {
+  var destination = document.getElementById("destination").value.trim();
+  
+  if (!destination) {
+    alert("✨ 目的地を入力してください 💫");
+    return;
+  }
+  
+  if (!currentPosition) {
+    alert("📍 現在地を取得してください");
+    getCurrentLocation();
+    return;
+  }
+  
+  log("🚶‍♀️ " + destination + "へのマジカルナビ開始");
+  document.getElementById("nav-container") && (document.getElementById("nav-container").className = "magic-container navigation-active");
+  
+  // 計算中の魔法
+  magicRing.rgb(MAGIC_COLORS.CALCULATING[0], MAGIC_COLORS.CALCULATING[1], MAGIC_COLORS.CALCULATING[2]);
+  document.getElementById("ring-status").innerHTML = "🔮 ルート魔法計算中...";
+  
+  var request = {
+    origin: new google.maps.LatLng(currentPosition.lat, currentPosition.lng),
+    destination: destination,
+    travelMode: google.maps.TravelMode.WALKING,
+    unitSystem: google.maps.UnitSystem.METRIC,
+    language: 'ja'
+  };
+  
+  directionsService.route(request, function(result, status) {
+    if (status === google.maps.DirectionsStatus.OK) {
+      directionsRenderer.setDirections(result);
+      route = result.routes[0];
+      currentStepIndex = 0;
+      isNavigating = true;
+      
+      log("✅ ルート計算完了: " + route.legs[0].distance.text + ", " + route.legs[0].duration.text);
+      
+      // 最初のステップを表示
+      processCurrentStep();
+      
+            // リアルタイム位置追跡開始
+      startLocationTracking();
+      
+      log("🔄 リアルタイム歩行追跡開始");
+      
+    } else {
+      log("❌ ルート計算失敗: " + status);
+      alert("✨ ルート計算に失敗しました: " + status + " 💫");
+    }
+  });
+}
+
+function processCurrentStep() {
+  if (!route || !isNavigating) return;
+  
+  var steps = route.legs[0].steps;
+  
+  if (currentStepIndex >= steps.length) {
+    arrivalCelebration();
+    return;
+  }
+  
+  var step = steps[currentStepIndex];
+  var instruction = step.instructions.replace(/<[^>]*>/g, '');
+  var maneuver = step.maneuver || 'straight';
+  
+  document.getElementById("current-instruction").innerHTML = 
+    "🚶‍♀️ Step " + (currentStepIndex + 1) + "/" + steps.length + "<br>" +
+    "💫 " + instruction + "<br>" +
+    "📏 " + step.distance.text + " ✨";
+  
+  document.getElementById("navigation-progress").innerHTML = 
+    "✨ 進捗: " + (currentStepIndex + 1) + "/" + steps.length + " ステップ 💎";
+  
+  log("📍 Step " + (currentStepIndex + 1) + ": " + instruction);
+  
+  showMagicDirection(maneuver, instruction);
+}
+
+function showMagicDirection(maneuver, instruction) {
+  var color, statusText, displayText;
+  
+  if (maneuver.includes('right') || instruction.includes('右')) {
+    color = MAGIC_COLORS.RIGHT;
+    statusText = "✨ シャイニングゴールド発動 💛";
+    displayText = "Turn Right";
+  } else if (maneuver.includes('left') || instruction.includes('左')) {
+    color = MAGIC_COLORS.LEFT;
+    statusText = "💜 マジカルパープル発動 ✨";
+    displayText = "Turn Left";
+  } else {
+    color = MAGIC_COLORS.STRAIGHT;
+    statusText = "💚 ミラクルエメラルド発動 ✨";
+    displayText = "Go Straight";
+  }
+  
+  document.getElementById("ring-status").innerHTML = statusText;
+  magicRing.rgb(color[0], color[1], color[2]);
+  
+  obniz.display.clear();
+  obniz.display.print(displayText);
+  
+  log("🪄 " + statusText);
+}
+
+function startLocationTracking() {
+  log("📡 リアルタイム位置追跡システム開始");
+  
+  if (locationWatcher) {
+    navigator.geolocation.clearWatch(locationWatcher);
+  }
+  
+  locationWatcher = navigator.geolocation.watchPosition(
+    function(position) {
+      currentPosition = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        accuracy: position.coords.accuracy
+      };
+      
+      // マーカー更新
+      if (userMarker) {
+        userMarker.setPosition(currentPosition);
+      }
+      
+      // 地図中心更新
+      if (isNavigating) {
+        map.panTo(currentPosition);
+      }
+      
+      // 進行状況チェック
+      if (isNavigating) {
+        checkNavigationProgress();
+      }
+    },
+    function(error) {
+      log("⚠️ 位置追跡エラー: " + error.message);
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 5000
+    }
+  );
+}
+function checkNavigationProgress() {
+  if (!route || currentStepIndex >= route.legs[0].steps.length) return;
+  
+  var currentStep = route.legs[0].steps[currentStepIndex];
+  var stepEndLocation = currentStep.end_location;
+  
+  var distance = calculateDistance(
+    currentPosition.lat, currentPosition.lng,
+    stepEndLocation.lat(), stepEndLocation.lng()
+  );
+  
+  var distanceM = distance * 1000;
+  
+  document.getElementById("distance-info").innerHTML = 
+    "🎯 次のポイントまで: " + Math.round(distanceM) + "m ✨";
+  
+  // 25m以内で次のステップへ
+  if (distanceM < 25) {
+    log("✅ Step " + (currentStepIndex + 1) + "完了 (残り" + Math.round(distanceM) + "m)");
+    currentStepIndex++;
+    processCurrentStep();
+  }
+}
+
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  var R = 6371;
+  var dLat = (lat2 - lat1) * Math.PI / 180;
+  var dLon = (lon2 - lon1) * Math.PI / 180;
+  var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+          Math.sin(dLon/2) * Math.sin(dLon/2);
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+async function arrivalCelebration() {
+  isNavigating = false;
+  if (locationWatcher) {
+    navigator.geolocation.clearWatch(locationWatcher);
+  }
+  
+  log("🎉 目的地到着！プリンセスピンク最終魔法発動！");
+  document.getElementById("ring-status").innerHTML = "🎊 プリンセスピンク大発動中 💖";
+  document.getElementById("current-instruction").innerHTML = 
+    "🎉 目的地に到着しました！<br>✨ マジカルナビゲーション完了 💫";
+  
+  // 最終祝福の魔法
+  var celebrationColors = [
+    MAGIC_COLORS.RIGHT,    // シャイニングゴールド
+    MAGIC_COLORS.LEFT,     // マジカルパープル  
+    MAGIC_COLORS.STRAIGHT, // ミラクルエメラルド
+    MAGIC_COLORS.ARRIVED   // プリンセスピンク
+  ];
+  
+  for (var cycle = 0; cycle < 8; cycle++) {
+    for (var color of celebrationColors) {
+      magicRing.rgb(color[0], color[1], color[2]);
+      await obniz.wait(150);
+    }
+  }
+  
+  // 最終的にプリンセスピンクで固定
+  magicRing.rgb(MAGIC_COLORS.ARRIVED[0], MAGIC_COLORS.ARRIVED[1], MAGIC_COLORS.ARRIVED[2]);
+  
+  obniz.display.clear();
+  obniz.display.print('PRINCESS!');
+  
+  log("🪄✨ プリンセスピンク魔法完了！ マジカルナビ終了 ✨🪄");
+}
+
+function stopNavigation() {
+  isNavigating = false;
+  if (locationWatcher) {
+    navigator.geolocation.clearWatch(locationWatcher);
+  }
+  
+  magicRing.rgb(0, 0, 0);
+  document.getElementById("ring-status").innerHTML = "⏹️ ナビ停止 ✨";
+  document.getElementById("current-instruction").innerHTML = "🔮 指示待機中 🔮";
+  document.getElementById("nav-container") && (document.getElementById("nav-container").className = "magic-container");
+  log("⏹️ マジカルナビ停止");
+}
+
+function startVoiceInput() {
+  if (!('webkitSpeechRecognition' in window)) {
+    alert("💫 このブラウザは音声認識に対応していません。Chromeを使ってください ✨");
+    return;
+  }
+
+  const recognition = new webkitSpeechRecognition();
+  recognition.lang = 'ja-JP';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  recognition.onstart = function() {
+    log("🎙️ 音声入力を開始しました。話しかけてください！");
+    document.getElementById("ring-status").innerHTML = "🎤 音声入力中... ✨";
+    if (magicRing) {
+      magicRing.rgb(MAGIC_COLORS.CALCULATING[0], MAGIC_COLORS.CALCULATING[1], MAGIC_COLORS.CALCULATING[2]);
+    }
+  };
+
+  recognition.onresult = function(event) {
+    const transcript = event.results[0][0].transcript;
+    document.getElementById("destination").value = transcript;
+    log("📝 音声認識結果: " + transcript + " ✨");
+    document.getElementById("ring-status").innerHTML = "✅ 音声認識成功 💫";
+
+    if (magicRing) {
+      magicRing.rgb(MAGIC_COLORS.SUCCESS[0], MAGIC_COLORS.SUCCESS[1], MAGIC_COLORS.SUCCESS[2]);
+      setTimeout(() => {
+        magicRing.rgb(0, 0, 0);
+        document.getElementById("ring-status").innerHTML = "✨ 魔法待機中 ✨";
+      }, 2000);
+    }
+  };
+
+  recognition.onerror = function(event) {
+    log("⚠️ 音声認識エラー: " + event.error);
+    document.getElementById("ring-status").innerHTML = "❌ 音声認識失敗 💫";
+    if (magicRing) {
+      magicRing.rgb(MAGIC_COLORS.WARNING[0], MAGIC_COLORS.WARNING[1], MAGIC_COLORS.WARNING[2]);
+      setTimeout(() => {
+        magicRing.rgb(0, 0, 0);
+        document.getElementById("ring-status").innerHTML = "✨ 魔法待機中 ✨";
+      }, 2000);
+    }
+  };
+
+  recognition.onend = function() {
+    log("🎤 音声入力を終了しました ✨");
+  };
+
+  recognition.start();
+}
+
+// 色区別テスト関数
+  async function testColorDistinction() {
+  if (!magicRing) {
+    alert("💍 マジカルリングが接続されていません ✨");
+    return;
+  }
+
+  log("🔍 マジカルカラー区別テスト開始！");
+  
+  const testColors = [
+    { name: "シャイニングゴールド", color: MAGIC_COLORS.RIGHT, icon: "💛", desc: "右折" },
+    { name: "マジカルパープル", color: MAGIC_COLORS.LEFT, icon: "💜", desc: "左折" },
+    { name: "ミラクルエメラルド", color: MAGIC_COLORS.STRAIGHT, icon: "💚", desc: "直進" },
+    { name: "マジカルサファイア", color: MAGIC_COLORS.CALCULATING, icon: "💙", desc: "計算中" },
+    { name: "プリンセスピンク", color: MAGIC_COLORS.ARRIVED, icon: "💖", desc: "到着" }
+  ];
+  
+  for (let testColor of testColors) {
+    log(`\${testColor.icon} \${testColor.name}（\${testColor.desc}）テスト中...`);
+    document.getElementById("ring-status").innerHTML = 
+      `\${testColor.icon} \${testColor.name}発動中 ✨`;
+    magicRing.rgb(...testColor.color);
+    await obniz.wait(3000);
+    
+    // 間隔
+    magicRing.rgb(0, 0, 0);
+    await obniz.wait(500);
+  }
+  
+  document.getElementById("ring-status").innerHTML = "✨ カラーテスト完了！ 💫";
+  log("✨ マジカルカラーテスト完了！");
+}
+// ページ読み込み完了時の処理
+window.addEventListener('load', function() {
+  log("✨ マジカルナビリングシステム起動完了！ 💍");
+});
+
+// obnizエラーハンドリング
+obniz.onerror = function(error) {
+  log("❌ obniz接続エラー: " + error.message);
+  if (error.message.includes("connected from 1 clients")) {
+    log("⚠️ 他のタブでobnizが使用中です。他のタブを閉じてください");
+  }
+};
+
+// ページを閉じる時の処理
+window.addEventListener('beforeunload', function() {
+  if (magicRing) {
+    magicRing.rgb(0, 0, 0); // ライト消灯
+  }
+});
+
+</script>
+
+<!-- Google Maps API -->
+<script async defer 
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBGwQk-t30NN7TZ1J1tkRlLO2wamO4_7mk&callback=initializeGoogleMaps&language=ja">
+</script>
+
+</body>
+</html>
+
+

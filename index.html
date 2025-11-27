@@ -666,6 +666,13 @@ window.addEventListener('beforeunload', function() {
   src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBGwQk-t30NN7TZ1J1tkRlLO2wamO4_7mk&callback=initializeGoogleMaps&language=ja">
 </script>
 
+<!-- Unity iframe（最初は scene1 を表示） -->
+<iframe id="unity-container" src="scene1/index.html" style="width:100%; height:600px; border:none;"></iframe>
+
+<!-- JS 読み込み -->
+<script src="sceneControl.js"></script>
+<script src="main.js"></script> <!-- 既存ナビ処理 -->
+  
 </body>
 </html>
 
